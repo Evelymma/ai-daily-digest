@@ -134,28 +134,45 @@ async function sendEmailWithAttachment(
     },
   });
 
-  // 简单的 Markdown 转 HTML
+  // Markdown 转 HTML
   let htmlContent = markdownContent
-    .replace(/^# (.*?)$/gm, '<h1 style="color: #333; font-size: 28px; margin: 20px 0;">$1</h1>')
-    .replace(/^## (.*?)$/gm, '<h2 style="color: #555; font-size: 22px; margin: 16px 0;">$1</h2>')
-    .replace(/^### (.*?)$/gm, '<h3 style="color: #666; font-size: 18px; margin: 12px 0;">$1</h3>')
-    .replace(/\*\*(.*?)\*\*/g, '<strong style="color: #333;">$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" style="color: #0066cc; text-decoration: none;">$1</a>')
-    .replace(/^- (.*?)$/gm, '<li style="margin-left: 20px;">$1</li>')
-    .replace(/(<li.*?<\/li>)/s, '<ul style="list-style: disc;">$1</ul>')
-    .replace(/\n/g, '<br>')
-    .replace(/---/g, '<hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">')
+    // 处理代码块（必须先处理，避免后续替换破坏）
     .replace(/```[\s\S]*?```/g, (match) => {
       const code = match.replace(/```/g, '').trim();
-      return `<pre style="background: #f5f5f5; padding: 12px; border-radius: 4px; overflow-x: auto;"><code>${code}</code></pre>`;
+      return `<div style="background: #f5f5f5; padding: 12px; border-radius: 4px; overflow-x: auto; margin: 10px 0;"><code>${code}</code></div>`;
     })
-    .replace(/\|(.+?)\|/g, (match) => {
-      const cells = match.split('|').filter(c => c.trim());
-      return `<table style="border-collapse: collapse; width: 100%; margin: 10px 0;">
-        <tr>${cells.map(c => `<td style="border: 1px solid #ddd; padding: 8px;">${c.trim()}</td>`).join('')}</tr>
-      </table>`;
-    });
+    // 处理表格（必须先处理）
+    .split('\n')
+    .map(line => {
+      if (line.includes('|')) {
+        const cells = line.split('|').filter(c => c.trim()).map(c => c.trim());
+        if (cells.length > 0) {
+          return `<tr>${cells.map(c => `<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${c}</td>`).join('')}</tr>`;
+        }
+      }
+      return line;
+    })
+    .join('\n')
+    .replace(/(<tr>.*?<\/tr>)/s, '<table style="border-collapse: collapse; width: 100%; margin: 15px 0; border: 1px solid #ddd;">$1</table>')
+    // 标题
+    .replace(/^# (.*?)$/gm, '<h1 style="color: #333; font-size: 28px; margin: 20px 0 10px 0;">$1</h1>')
+    .replace(/^## (.*?)$/gm, '<h2 style="color: #555; font-size: 22px; margin: 16px 0 8px 0;">$1</h2>')
+    .replace(/^### (.*?)$/gm, '<h3 style="color: #666; font-size: 18px; margin: 12px 0 6px 0;">$1</h3>')
+    // 粗体和斜体
+    .replace(/\*\*(.*?)\*\*/g, '<strong style="color: #333;">$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    // 链接
+    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" style="color: #0066cc; text-decoration: none;">$1</a>')
+    // 列表（保留 markdown 风格）
+    .replace(/^- (.*?)$/gm, '&nbsp;&nbsp;• $1')
+    // 分隔线
+    .replace(/^---$/gm, '<hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">')
+    // 引用
+    .replace(/^> (.*?)$/gm, '<div style="border-left: 3px solid #ddd; padding-left: 12px; margin: 10px 0; color: #666;">$1</div>')
+    // 换行（保留合理的间距）
+    .split('\n')
+    .map(line => line.trim() ? `<p style="margin: 8px 0; line-height: 1.6;">${line}</p>` : '')
+    .join('');
 
   // 发送邮件
   const mailOptions = {
