@@ -22,10 +22,9 @@ jobs:
         run: |
           npx -y bun scripts/digest.ts --hours 48 --top-n 15 --lang zh --output ./digest-$(date +%Y%m%d).md
       
-      - name: Commit and Push
-        run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git add .
-          git commit -m "Generate daily digest for $(date +%Y-%m-%d)" || echo "No changes to commit"
-          git push
+      - name: Upload Digest as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-digest
+          path: digest-*.md
+          retention-days: 30
