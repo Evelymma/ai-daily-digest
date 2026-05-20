@@ -10,9 +10,9 @@ const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/
 const OPENAI_DEFAULT_API_BASE = 'https://api.openai.com/v1';
 const OPENAI_DEFAULT_MODEL = 'gpt-4o-mini';
 const FEED_FETCH_TIMEOUT_MS = 15_000;
-const FEED_CONCURRENCY = 10;
+const FEED_CONCURRENCY = 3;
 const GEMINI_BATCH_SIZE = 10;
-const MAX_CONCURRENT_GEMINI = 2;
+const MAX_CONCURRENT_GEMINI = 1;
 
 // 90 RSS feeds from Hacker News Popularity Contest 2025 (curated by Karpathy)
 const RSS_FEEDS: Array<{ name: string; xmlUrl: string; htmlUrl: string }> = [
