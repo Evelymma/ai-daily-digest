@@ -123,36 +123,50 @@ async function sendEmailWithAttachment(
   senderEmail: string,
   senderPassword: string,
   subject: string,
-  htmlBody: string,
-  attachmentPath: string,
-  attachmentFilename: string
+  markdownContent: string
 ): Promise<void> {
   // 创建 Gmail SMTP 传输
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
       user: senderEmail,
-      pass: senderPassword,  // Gmail 应用专用密码（不是账户密码）
+      pass: senderPassword,
     },
   });
 
-  // 读取生成的 Markdown 文件
-  const fs = await import('node:fs/promises');
-  const fileContent = await fs.readFile(attachmentPath, 'utf-8');
+  // 简单的 Markdown 转 HTML
+  let htmlContent = markdownContent
+    .replace(/^# (.*?)$/gm, '<h1 style="color: #333; font-size: 28px; margin: 20px 0;">$1</h1>')
+    .replace(/^## (.*?)$/gm, '<h2 style="color: #555; font-size: 22px; margin: 16px 0;">$1</h2>')
+    .replace(/^### (.*?)$/gm, '<h3 style="color: #666; font-size: 18px; margin: 12px 0;">$1</h3>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong style="color: #333;">$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" style="color: #0066cc; text-decoration: none;">$1</a>')
+    .replace(/^- (.*?)$/gm, '<li style="margin-left: 20px;">$1</li>')
+    .replace(/(<li.*?<\/li>)/s, '<ul style="list-style: disc;">$1</ul>')
+    .replace(/\n/g, '<br>')
+    .replace(/---/g, '<hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">')
+    .replace(/```[\s\S]*?```/g, (match) => {
+      const code = match.replace(/```/g, '').trim();
+      return `<pre style="background: #f5f5f5; padding: 12px; border-radius: 4px; overflow-x: auto;"><code>${code}</code></pre>`;
+    })
+    .replace(/\|(.+?)\|/g, (match) => {
+      const cells = match.split('|').filter(c => c.trim());
+      return `<table style="border-collapse: collapse; width: 100%; margin: 10px 0;">
+        <tr>${cells.map(c => `<td style="border: 1px solid #ddd; padding: 8px;">${c.trim()}</td>`).join('')}</tr>
+      </table>`;
+    });
 
   // 发送邮件
   const mailOptions = {
     from: senderEmail,
     to: recipientEmail,
     subject,
-    html: htmlBody,
-    attachments: [
-      {
-        filename: attachmentFilename,
-        content: fileContent,
-        contentType: 'text/markdown',
-      },
-    ],
+    html: `
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 900px; margin: 0 auto; padding: 20px;">
+        ${htmlContent}
+      </div>
+    `,
   };
 
   await transporter.sendMail(mailOptions);
@@ -1226,20 +1240,21 @@ async function main(): Promise<void> {
     }
   }
 
-  // Send email notification
+   // Send email notification
   if (MAIL_SENDER_EMAIL && MAIL_SENDER_PASSWORD && MAIL_RECIPIENT) {
     try {
       const emailSubject = `AI 日报 - ${new Date().toISOString().slice(0, 10)}`;
-      const emailHtml = `<h1>📰 AI 博客每日精选</h1><p>请查看附件中的完整日报。</p><p>包含 ${finalArticles.length} 篇精选文章。</p>`;
+      
+      // 读取生成的 Markdown 文件内容
+      const fs = await import('node:fs/promises');
+      const markdownContent = await fs.readFile(outputPath, 'utf-8');
       
       await sendEmailWithAttachment(
         MAIL_RECIPIENT,
         MAIL_SENDER_EMAIL,
         MAIL_SENDER_PASSWORD,
         emailSubject,
-        emailHtml,
-        outputPath,
-        `digest-${new Date().toISOString().slice(0, 10)}.md`
+        markdownContent
       );
     } catch (emailError) {
       console.warn(`[digest] ⚠️ Failed to send email: ${emailError instanceof Error ? emailError.message : String(emailError)}`);
