@@ -110,7 +110,11 @@ const RSS_FEEDS: Array<{ name: string; xmlUrl: string; htmlUrl: string }> = [
   { name: "miguelgrinberg.com", xmlUrl: "https://blog.miguelgrinberg.com/feed", htmlUrl: "https://miguelgrinberg.com" },
   { name: "keygen.sh", xmlUrl: "https://keygen.sh/blog/feed.xml", htmlUrl: "https://keygen.sh" },
   { name: "mjg59.dreamwidth.org", xmlUrl: "https://mjg59.dreamwidth.org/data/rss", htmlUrl: "https://mjg59.dreamwidth.org" },
-  // ============================================================================
+  { name: "computer.rip", xmlUrl: "https://computer.rip/rss.xml", htmlUrl: "https://computer.rip" },
+  { name: "tedunangst.com", xmlUrl: "https://www.tedunangst.com/flak/rss", htmlUrl: "https://tedunangst.com" },
+];
+
+// ============================================================================
 // Email Sending
 // ============================================================================
 
@@ -154,9 +158,6 @@ async function sendEmailWithAttachment(
   await transporter.sendMail(mailOptions);
   console.log(`[digest] ✅ Email sent to ${recipientEmail}`);
 }
-  { name: "computer.rip", xmlUrl: "https://computer.rip/rss.xml", htmlUrl: "https://computer.rip" },
-  { name: "tedunangst.com", xmlUrl: "https://www.tedunangst.com/flak/rss", htmlUrl: "https://tedunangst.com" },
-];
 
 // ============================================================================
 // Types
@@ -1224,7 +1225,6 @@ async function main(): Promise<void> {
       console.log(`     ${a.summary.slice(0, 80)}...`);
     }
   }
-}
 
   // Send email notification
   if (MAIL_SENDER_EMAIL && MAIL_SENDER_PASSWORD && MAIL_RECIPIENT) {
@@ -1247,6 +1247,7 @@ async function main(): Promise<void> {
   } else if (!MAIL_SENDER_EMAIL || !MAIL_SENDER_PASSWORD || !MAIL_RECIPIENT) {
     console.log(`[digest] ℹ️ Email notification skipped (MAIL_SENDER_EMAIL, MAIL_SENDER_PASSWORD, or MAIL_RECIPIENT not set)`);
   }
+}
 
 await main().catch((err) => {
   console.error(`[digest] Fatal error: ${err instanceof Error ? err.message : String(err)}`);
