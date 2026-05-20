@@ -8,16 +8,42 @@ on:
 jobs:
   generate-digest:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
-      
+
+      - name: Install Playwright Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libnss3 \
+            libatk1.0-0 \
+            libatk-bridge2.0-0 \
+            libcups2 \
+            libdrm2 \
+            libxkbcommon0 \
+            libxcomposite1 \
+            libxdamage1 \
+            libxfixes3 \
+            libxrandr2 \
+            libgbm1 \
+            libasound2
+
       - name: Install dependencies
-        run: bun add nodemailer
-      
+        run: |
+          bun add \
+            nodemailer \
+            marked \
+            marked-gfm-heading-id \
+            playwright \
+            mermaid
+
+      - name: Install Chromium
+        run: npx playwright install chromium
+
       - name: Generate Daily Digest and Send Email
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -25,8 +51,12 @@ jobs:
           MAIL_SENDER_PASSWORD: ${{ secrets.MAIL_SENDER_PASSWORD }}
           MAIL_RECIPIENT: ${{ secrets.MAIL_RECIPIENT }}
         run: |
-          npx -y bun scripts/digest.ts --hours 48 --top-n 15 --lang zh --output ./digest-$(date +%Y%m%d).md
-      
+          npx -y bun scripts/digest.ts \
+            --hours 48 \
+            --top-n 15 \
+            --lang zh \
+            --output ./digest-$(date +%Y%m%d).md
+
       - name: Upload Digest as Artifact
         uses: actions/upload-artifact@v4
         with:
