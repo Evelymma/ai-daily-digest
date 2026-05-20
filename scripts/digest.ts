@@ -1,6 +1,7 @@
 import { writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import process from 'node:process';
+import nodemailer from 'nodemailer';
 
 // ============================================================================
 // Constants
@@ -12,6 +13,9 @@ const OPENAI_DEFAULT_MODEL = 'gpt-4o-mini';
 const FEED_FETCH_TIMEOUT_MS = 15_000;
 const FEED_CONCURRENCY = 3;
 const GEMINI_BATCH_SIZE = 10;
+const MAIL_SENDER_EMAIL = process.env.MAIL_SENDER_EMAIL || '';
+const MAIL_SENDER_PASSWORD = process.env.MAIL_SENDER_PASSWORD || '';  // Gmail 专用密码
+const MAIL_RECIPIENT = process.env.MAIL_RECIPIENT || '';
 const MAX_CONCURRENT_GEMINI = 1;
 
 // 90 RSS feeds from Hacker News Popularity Contest 2025 (curated by Karpathy)
@@ -106,6 +110,50 @@ const RSS_FEEDS: Array<{ name: string; xmlUrl: string; htmlUrl: string }> = [
   { name: "miguelgrinberg.com", xmlUrl: "https://blog.miguelgrinberg.com/feed", htmlUrl: "https://miguelgrinberg.com" },
   { name: "keygen.sh", xmlUrl: "https://keygen.sh/blog/feed.xml", htmlUrl: "https://keygen.sh" },
   { name: "mjg59.dreamwidth.org", xmlUrl: "https://mjg59.dreamwidth.org/data/rss", htmlUrl: "https://mjg59.dreamwidth.org" },
+  // ============================================================================
+// Email Sending
+// ============================================================================
+
+async function sendEmailWithAttachment(
+  recipientEmail: string,
+  senderEmail: string,
+  senderPassword: string,
+  subject: string,
+  htmlBody: string,
+  attachmentPath: string,
+  attachmentFilename: string
+): Promise<void> {
+  // 创建 Gmail SMTP 传输
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: senderEmail,
+      pass: senderPassword,  // Gmail 应用专用密码（不是账户密码）
+    },
+  });
+
+  // 读取生成的 Markdown 文件
+  const fs = await import('node:fs/promises');
+  const fileContent = await fs.readFile(attachmentPath, 'utf-8');
+
+  // 发送邮件
+  const mailOptions = {
+    from: senderEmail,
+    to: recipientEmail,
+    subject,
+    html: htmlBody,
+    attachments: [
+      {
+        filename: attachmentFilename,
+        content: fileContent,
+        contentType: 'text/markdown',
+      },
+    ],
+  };
+
+  await transporter.sendMail(mailOptions);
+  console.log(`[digest] ✅ Email sent to ${recipientEmail}`);
+}
   { name: "computer.rip", xmlUrl: "https://computer.rip/rss.xml", htmlUrl: "https://computer.rip" },
   { name: "tedunangst.com", xmlUrl: "https://www.tedunangst.com/flak/rss", htmlUrl: "https://tedunangst.com" },
 ];
@@ -1177,6 +1225,28 @@ async function main(): Promise<void> {
     }
   }
 }
+
+  // Send email notification
+  if (MAIL_SENDER_EMAIL && MAIL_SENDER_PASSWORD && MAIL_RECIPIENT) {
+    try {
+      const emailSubject = `AI 日报 - ${new Date().toISOString().slice(0, 10)}`;
+      const emailHtml = `<h1>📰 AI 博客每日精选</h1><p>请查看附件中的完整日报。</p><p>包含 ${finalArticles.length} 篇精选文章。</p>`;
+      
+      await sendEmailWithAttachment(
+        MAIL_RECIPIENT,
+        MAIL_SENDER_EMAIL,
+        MAIL_SENDER_PASSWORD,
+        emailSubject,
+        emailHtml,
+        outputPath,
+        `digest-${new Date().toISOString().slice(0, 10)}.md`
+      );
+    } catch (emailError) {
+      console.warn(`[digest] ⚠️ Failed to send email: ${emailError instanceof Error ? emailError.message : String(emailError)}`);
+    }
+  } else if (!MAIL_SENDER_EMAIL || !MAIL_SENDER_PASSWORD || !MAIL_RECIPIENT) {
+    console.log(`[digest] ℹ️ Email notification skipped (MAIL_SENDER_EMAIL, MAIL_SENDER_PASSWORD, or MAIL_RECIPIENT not set)`);
+  }
 
 await main().catch((err) => {
   console.error(`[digest] Fatal error: ${err instanceof Error ? err.message : String(err)}`);
