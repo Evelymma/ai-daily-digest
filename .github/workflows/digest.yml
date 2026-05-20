@@ -1,0 +1,31 @@
+name: AI Daily Digest
+
+on:
+  schedule:
+    # 每天早上 8 点 UTC 运行（可根据需要调整）
+    - cron: '0 8 * * *'
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  generate-digest:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+      
+      - name: Generate Daily Digest
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          npx -y bun scripts/digest.ts --hours 48 --top-n 15 --lang zh --output ./digest-$(date +%Y%m%d).md
+      
+      - name: Commit and Push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Generate daily digest for $(date +%Y-%m-%d)" || echo "No changes to commit"
+          git push
