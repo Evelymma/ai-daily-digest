@@ -1,0 +1,11 @@
+{
+  "name": "ai-daily-digest",
+  // Node.js 24 镜像，体积约 1GB，比 Universal (~10GB) 启动更快
+  // Bun 通过 feature 安装，是本项目唯一需要的运行时
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:24",
+  "features": {
+    "ghcr.io/shyim/devcontainers-features/bun:0": {}
+  },
+  // 环境启动后自动安装脚本依赖
+  "postCreateCommand": "bun add nodemailer"
+}
