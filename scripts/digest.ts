@@ -118,6 +118,50 @@ const RSS_FEEDS: Array<{ name: string; xmlUrl: string; htmlUrl: string }> = [
 // Email Sending
 // ============================================================================
 
+// 将 Mermaid 代码块转换为纯文本，供邮件使用（邮件客户端无法渲染 Mermaid）
+function convertMermaidToText(markdown: string): string {
+  return markdown.replace(/```mermaid\n([\s\S]*?)```/g, (_match, body: string) => {
+    const lines = body.trim().split('\n').map((l: string) => l.trim()).filter(Boolean);
+
+    // 饼图：pie showData → 文字列表
+    if (lines[0]?.startsWith('pie')) {
+      const title = lines.find((l: string) => l.startsWith('title'))?.replace('title', '').trim() || '';
+      const entries = lines
+        .filter((l: string) => l.startsWith('"'))
+        .map((l: string) => {
+          const m = l.match(/"(.+?)"\s*:\s*(\d+)/);
+          return m ? `${m[1]}: ${m[2]} 篇` : l;
+        });
+      const total = entries.length;
+      let out = title ? `**${title}**\n\n` : '';
+      out += entries.map((e: string) => `• ${e}`).join('\n');
+      out += total > 0 ? `\n\n（共 ${total} 个分类）` : '';
+      return out + '\n\n';
+    }
+
+    // 柱状图：xychart-beta → 关键词排名列表
+    if (lines[0]?.startsWith('xychart-beta')) {
+      const title = lines.find((l: string) => l.startsWith('title'))?.replace(/title\s*"?/, '').replace(/"$/, '').trim() || '';
+      const xLine = lines.find((l: string) => l.startsWith('x-axis'));
+      const yLine = lines.find((l: string) => l.startsWith('bar'));
+      if (xLine && yLine) {
+        const labels = (xLine.match(/\[(.+)\]/)?.[1] || '')
+          .split(',').map((s: string) => s.trim().replace(/^"|"$/g, ''));
+        const values = (yLine.match(/\[(.+)\]/)?.[1] || '')
+          .split(',').map((s: string) => parseInt(s.trim(), 10));
+        let out = title ? `**${title}**\n\n` : '';
+        out += labels
+          .map((label: string, i: number) => `${i + 1}. ${label}（${values[i] ?? 0} 次）`)
+          .join('\n');
+        return out + '\n\n';
+      }
+    }
+
+    // 其他 Mermaid 类型：直接移除代码块，保留纯文本内容
+    return lines.join('\n') + '\n\n';
+  });
+}
+
 async function sendEmailWithAttachment(
   recipientEmail: string,
   senderEmail: string,
@@ -134,45 +178,57 @@ async function sendEmailWithAttachment(
     },
   });
 
+  // 先将 Mermaid 图表转为纯文本，再做 Markdown → HTML 转换
+  const processedMarkdown = convertMermaidToText(markdownContent);
+
   // Markdown 转 HTML
-  let htmlContent = markdownContent
-    // 处理代码块（必须先处理，避免后续替换破坏）
-    .replace(/```[\s\S]*?```/g, (match) => {
-      const code = match.replace(/```/g, '').trim();
-      return `<div style="background: #f5f5f5; padding: 12px; border-radius: 4px; overflow-x: auto; margin: 10px 0;"><code>${code}</code></div>`;
+  let htmlContent = processedMarkdown
+    // 处理 <details> 折叠块（ASCII 图表包在里面）：展开为普通内容
+    .replace(/<details>[\s\S]*?<summary>(.*?)<\/summary>([\s\S]*?)<\/details>/g, (_m, summary: string, content: string) => {
+      return `<div style="margin: 10px 0;"><strong>${summary}</strong>${content}</div>`;
     })
-    // 处理表格（必须先处理）
+    // 处理代码块（ASCII 图表等）
+    .replace(/```[\s\S]*?```/g, (match: string) => {
+      const code = match.replace(/^```[^\n]*\n?/, '').replace(/```$/, '').trim();
+      return `<pre style="background:#f5f5f5;padding:12px;border-radius:4px;overflow-x:auto;margin:10px 0;font-family:monospace;font-size:13px;line-height:1.5;">${code}</pre>`;
+    })
+    // 处理 Markdown 表格
     .split('\n')
-    .map(line => {
-      if (line.includes('|')) {
+    .map((line: string) => {
+      if (/^\|.+\|$/.test(line.trim())) {
+        // 跳过分隔行（|:---:|）
+        if (/^\|[\s\-:|]+\|$/.test(line.trim())) return '';
         const cells = line.split('|').filter(c => c.trim()).map(c => c.trim());
-        if (cells.length > 0) {
-          return `<tr>${cells.map(c => `<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${c}</td>`).join('')}</tr>`;
-        }
+        return `<tr>${cells.map(c => `<td style="border:1px solid #ddd;padding:8px;text-align:center;">${c}</td>`).join('')}</tr>`;
       }
       return line;
     })
     .join('\n')
-    .replace(/(<tr>.*?<\/tr>)/s, '<table style="border-collapse: collapse; width: 100%; margin: 15px 0; border: 1px solid #ddd;">$1</table>')
+    .replace(/((?:<tr>.*?<\/tr>\n?)+)/gs, '<table style="border-collapse:collapse;width:100%;margin:15px 0;border:1px solid #ddd;">$1</table>')
     // 标题
-    .replace(/^# (.*?)$/gm, '<h1 style="color: #333; font-size: 28px; margin: 20px 0 10px 0;">$1</h1>')
-    .replace(/^## (.*?)$/gm, '<h2 style="color: #555; font-size: 22px; margin: 16px 0 8px 0;">$1</h2>')
-    .replace(/^### (.*?)$/gm, '<h3 style="color: #666; font-size: 18px; margin: 12px 0 6px 0;">$1</h3>')
+    .replace(/^# (.*?)$/gm, '<h1 style="color:#333;font-size:26px;margin:20px 0 10px;">$1</h1>')
+    .replace(/^## (.*?)$/gm, '<h2 style="color:#444;font-size:20px;margin:16px 0 8px;border-bottom:1px solid #eee;padding-bottom:4px;">$1</h2>')
+    .replace(/^### (.*?)$/gm, '<h3 style="color:#555;font-size:16px;margin:12px 0 6px;">$1</h3>')
     // 粗体和斜体
-    .replace(/\*\*(.*?)\*\*/g, '<strong style="color: #333;">$1</strong>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
     // 链接
-    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" style="color: #0066cc; text-decoration: none;">$1</a>')
-    // 列表（保留 markdown 风格）
-    .replace(/^- (.*?)$/gm, '&nbsp;&nbsp;• $1')
+    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" style="color:#0066cc;text-decoration:none;">$1</a>')
+    // 无序列表
+    .replace(/^- (.*?)$/gm, '<li style="margin:4px 0;">$1</li>')
+    .replace(/((?:<li.*?<\/li>\n?)+)/gs, '<ul style="padding-left:20px;margin:8px 0;">$1</ul>')
+    // 引用块
+    .replace(/^> (.*?)$/gm, '<blockquote style="border-left:3px solid #ddd;padding:4px 12px;margin:8px 0;color:#555;background:#fafafa;">$1</blockquote>')
     // 分隔线
-    .replace(/^---$/gm, '<hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">')
-    // 引用
-    .replace(/^> (.*?)$/gm, '<div style="border-left: 3px solid #ddd; padding-left: 12px; margin: 10px 0; color: #666;">$1</div>')
-    // 换行（保留合理的间距）
+    .replace(/^---$/gm, '<hr style="border:none;border-top:1px solid #eee;margin:20px 0;">')
+    // 普通段落（非 HTML 标签行）
     .split('\n')
-    .map(line => line.trim() ? `<p style="margin: 8px 0; line-height: 1.6;">${line}</p>` : '')
-    .join('');
+    .map((line: string) => {
+      if (!line.trim()) return '';
+      if (/^<[a-zA-Z]/.test(line.trim())) return line;
+      return `<p style="margin:6px 0;line-height:1.7;">${line}</p>`;
+    })
+    .join('\n');
 
   // 发送邮件
   const mailOptions = {
@@ -180,7 +236,7 @@ async function sendEmailWithAttachment(
     to: recipientEmail,
     subject,
     html: `
-      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 900px; margin: 0 auto; padding: 20px;">
+      <div style="font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;line-height:1.6;color:#333;max-width:860px;margin:0 auto;padding:24px;">
         ${htmlContent}
       </div>
     `,
