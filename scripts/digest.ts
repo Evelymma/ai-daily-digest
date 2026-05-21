@@ -243,7 +243,9 @@ async function sendEmailWithAttachment(
   };
 
   await transporter.sendMail(mailOptions);
-  console.log(`[digest] ✅ Email sent to ${recipientEmail}`);
+  // recipientEmail 可以是逗号分隔的多个地址，例如 "a@gmail.com,b@gmail.com"
+  const recipients = recipientEmail.split(',').map(s => s.trim()).filter(Boolean);
+  console.log(`[digest] ✅ Email sent to ${recipients.length} recipient(s): ${recipients.join(', ')}`);
 }
 
 // ============================================================================

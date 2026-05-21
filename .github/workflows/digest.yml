@@ -2,7 +2,7 @@ name: AI Daily Digest
 
 on:
   schedule:
-    - cron: '0 23 * * *'
+    - cron: '0 23 * * *'  # 日本时间每天 08:00 (JST = UTC+9)
   workflow_dispatch:
 
 jobs:
