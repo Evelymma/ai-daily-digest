@@ -15,34 +15,8 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
 
-      - name: Install Playwright Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libnss3 \
-            libatk1.0-0 \
-            libatk-bridge2.0-0 \
-            libcups2 \
-            libdrm2 \
-            libxkbcommon0 \
-            libxcomposite1 \
-            libxdamage1 \
-            libxfixes3 \
-            libxrandr2 \
-            libgbm1 \
-            libasound2t64
-
       - name: Install dependencies
-        run: |
-          bun add \
-            nodemailer \
-            marked \
-            marked-gfm-heading-id \
-            playwright \
-            mermaid
-
-      - name: Install Chromium
-        run: npx playwright install chromium
+        run: bun add nodemailer
 
       - name: Generate Daily Digest and Send Email
         env:
@@ -56,6 +30,32 @@ jobs:
             --top-n 15 \
             --lang zh \
             --output ./digest-$(date +%Y%m%d).md
+
+      - name: Push digest to news-vault repo
+        env:
+          VAULT_TOKEN: ${{ secrets.VAULT_TOKEN }}
+        run: |
+          # 计算年月，用于创建子文件夹，例如 2025/05
+          YEAR=$(date +%Y)
+          MONTH=$(date +%m)
+          FILENAME="digest-$(date +%Y%m%d).md"
+
+          # 克隆目标仓库
+          git clone https://x-access-token:${VAULT_TOKEN}@github.com/Evelymma/ai-daily-digest-news-vault.git vault-repo
+
+          # 创建年月文件夹（如果不存在）
+          mkdir -p vault-repo/${YEAR}/${MONTH}
+
+          # 复制日报文件到对应目录
+          cp ${FILENAME} vault-repo/${YEAR}/${MONTH}/${FILENAME}
+
+          # 提交并推送
+          cd vault-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "digest: ${FILENAME}"
+          git push
 
       - name: Upload Digest as Artifact
         uses: actions/upload-artifact@v4

@@ -1,3 +1,7 @@
 generated_imgs/
 node_modules/
 *.log
+
+# 本地运行生成的日报文件（CI 会推送到专用仓库，不提交到本仓库）
+digest-*.md
+output/
