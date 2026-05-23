@@ -723,6 +723,17 @@ async function scoreArticlesWithAI(
   console.log(`[digest] AI scoring: ${articles.length} articles in ${batches.length} batches`);
   
   const validCategories = new Set<string>(['ai-ml', 'security', 'engineering', 'tools', 'opinion', 'other']);
+  const normalizeCategory = (raw: unknown): CategoryId => {
+    const value = String(raw ?? '').trim().toLowerCase().replace(/[_\s]+/g, '-');
+    if (validCategories.has(value)) return value as CategoryId;
+
+    if (/(^ai$|ml|llm|deep-learning|machine-learning)/.test(value)) return 'ai-ml';
+    if (/(security|privacy|vuln|vulnerability|crypto|encryption)/.test(value)) return 'security';
+    if (/(engineering|software|programming|architecture|backend|frontend|system)/.test(value)) return 'engineering';
+    if (/(tool|opensource|open-source|framework|library|sdk|cli)/.test(value)) return 'tools';
+    if (/(opinion|career|culture|thought|essay|commentary)/.test(value)) return 'opinion';
+    return 'other';
+  };
   
   for (let i = 0; i < batches.length; i += MAX_CONCURRENT_GEMINI) {
     const batchGroup = batches.slice(i, i + MAX_CONCURRENT_GEMINI);
@@ -735,7 +746,7 @@ async function scoreArticlesWithAI(
         if (parsed.results && Array.isArray(parsed.results)) {
           for (const result of parsed.results) {
             const clamp = (v: number) => Math.min(10, Math.max(1, Math.round(v)));
-            const cat = (validCategories.has(result.category) ? result.category : 'other') as CategoryId;
+            const cat = normalizeCategory(result.category);
             allScores.set(result.index, {
               relevance: clamp(result.relevance),
               quality: clamp(result.quality),
