@@ -916,6 +916,34 @@ ${articleList}
 // Visualization Helpers
 // ============================================================================
 
+function getJSTDateParts(date = new Date()) {
+const formatter = new Intl.DateTimeFormat('sv-SE', {
+timeZone: 'Asia/Tokyo',
+year: 'numeric',
+month: '2-digit',
+day: '2-digit',
+hour: '2-digit',
+minute: '2-digit',
+second: '2-digit',
+hour12: false,
+});
+
+const parts = formatter.formatToParts(date);
+
+const map = Object.fromEntries(
+parts
+.filter(p => p.type !== 'literal')
+.map(p => [p.type, p.value])
+);
+
+return {
+date: `${map.year}-${map.month}-${map.day}`,
+time: `${map.hour}:${map.minute}`,
+datetime: `${map.year}-${map.month}-${map.day} ${map.hour}:${map.minute}`,
+filenameDate: `${map.year}${map.month}${map.day}`,
+};
+}
+
 function humanizeTime(pubDate: Date): string {
   const diffMs = Date.now() - pubDate.getTime();
   const diffMins = Math.floor(diffMs / 60_000);
@@ -925,7 +953,7 @@ function humanizeTime(pubDate: Date): string {
   if (diffMins < 60) return `${diffMins} 分钟前`;
   if (diffHours < 24) return `${diffHours} 小时前`;
   if (diffDays < 7) return `${diffDays} 天前`;
-  return pubDate.toISOString().slice(0, 10);
+  return getJSTDateParts(pubDate).date;
 }
 
 function generateKeywordBarChart(articles: ScoredArticle[]): string {
@@ -1043,9 +1071,25 @@ function generateDigestReport(articles: ScoredArticle[], highlights: string, sta
   lang: string;
 }): string {
   const now = new Date();
-  const dateStr = now.toISOString().split('T')[0];
+  const jst = getJSTDateParts(now);
+  const dateStr = jst.date;
+
   
-  let report = `# 📰 AI 博客每日精选 — ${dateStr}\n\n`;
+  const frontmatter =
+  `---
+  title: 📰 AI 博客每日精选 — ${dateStr}
+  resource type:
+    - 🌐webpage
+  tags:
+    - ✂️clippings
+  created time: ${jst.datetime}
+  description: TODO
+  ---
+
+  `;
+
+  let report = frontmatter;
+  report += `# 📰 AI 博客每日精选 — ${dateStr}\n\n`;
   report += `> 来自 Karpathy 推荐的 ${stats.totalFeeds} 个顶级技术博客，AI 精选 Top ${articles.length}\n\n`;
 
   // ── Today's Highlights ──
@@ -1136,7 +1180,7 @@ function generateDigestReport(articles: ScoredArticle[], highlights: string, sta
   }
 
   // ── Footer ──
-  report += `*生成于 ${dateStr} ${now.toISOString().split('T')[1]?.slice(0, 5) || ''} | 扫描 ${stats.successFeeds} 源 → 获取 ${stats.totalArticles} 篇 → 精选 ${articles.length} 篇*\n`;
+  report += `*生成于 ${dateStr} ${jst.time} | 扫描 ${stats.successFeeds} 源 → 获取 ${stats.totalArticles} 篇 → 精选 ${articles.length} 篇*\n`;
   report += `*基于 [Hacker News Popularity Contest 2025](https://refactoringenglish.com/tools/hn-popularity/) RSS 源列表，由 [Andrej Karpathy](https://x.com/karpathy) 推荐*\n`;
 
   return report;
@@ -1213,7 +1257,7 @@ async function main(): Promise<void> {
   });
   
   if (!outputPath) {
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const dateStr = getJSTDateParts().filenameDate;
     outputPath = `./digest-${dateStr}.md`;
   }
   
@@ -1329,7 +1373,7 @@ async function main(): Promise<void> {
    // Send email notification
   if (MAIL_SENDER_EMAIL && MAIL_SENDER_PASSWORD && MAIL_RECIPIENT) {
     try {
-      const emailSubject = `AI 日报 - ${new Date().toISOString().slice(0, 10)}`;
+      const emailSubject = `AI 日报 - ${getJSTDateParts().date}`;
       
       // 读取生成的 Markdown 文件内容
       const fs = await import('node:fs/promises');
