@@ -41,13 +41,16 @@ jobs:
           FILENAME="digest-$(date +%Y%m%d).md"
 
           # 克隆目标仓库
-          git clone https://x-access-token:${VAULT_TOKEN}@github.com/Evelymma/ai-daily-digest-news-vault.git vault-repo
+          git clone https://x-access-token:${VAULT_TOKEN}@github.com/Evelymma/my-obsidian-vault.git vault-repo
 
-          # 创建年月文件夹（如果不存在）
-          mkdir -p vault-repo/${YEAR}/${MONTH}
+          # Obsidian中的目标目录
+          TARGET_DIR="vault-repo/01-Inbox/clippings/AI-news/${YEAR}/${MONTH}"
 
-          # 复制日报文件到对应目录
-          cp ${FILENAME} vault-repo/${YEAR}/${MONTH}/${FILENAME}
+          # 创建目录
+          mkdir -p ${TARGET_DIR}
+
+          # 复制日报文件
+          cp ${FILENAME} ${TARGET_DIR}/${FILENAME}
 
           # 提交并推送
           cd vault-repo
