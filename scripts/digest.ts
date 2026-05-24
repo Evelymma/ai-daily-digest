@@ -1076,7 +1076,7 @@ function generateDigestReport(articles: ScoredArticle[], highlights: string, sta
 
   
   const frontmatter =
-  `   ---
+  `---
    title: 📰 AI 博客每日精选 — ${dateStr}
    resource type:
      - 🌐webpage
@@ -1084,7 +1084,7 @@ function generateDigestReport(articles: ScoredArticle[], highlights: string, sta
      - ✂️clippings
    created time: ${jst.datetime}
    description: TODO
-   ---
+---
 
   `;
 
